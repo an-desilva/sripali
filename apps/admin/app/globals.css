@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col;
+  }
+}
+
+/* Thermal Invoice Printing */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #thermal-invoice-printable, #thermal-invoice-printable * {
+    visibility: visible;
+  }
+  #thermal-invoice-printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm; /* Standard thermal receipt paper size */
+    font-family: monospace;
+    font-size: 12px;
+    color: black !important;
+    background: white !important;
+  }
+}

@@ -1,0 +1,4 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+export const Card = ({ children, className = '', title, subtitle, action }) => {
+    return (_jsxs("div", { className: `bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden ${className}`, children: [(title || action) && (_jsxs("div", { className: "px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between", children: [_jsxs("div", { children: [title && _jsx("h3", { className: "text-lg font-semibold text-slate-900 dark:text-white", children: title }), subtitle && _jsx("p", { className: "text-xs text-slate-500 dark:text-slate-400 mt-0.5", children: subtitle })] }), action && _jsx("div", { children: action })] })), _jsx("div", { className: "p-6", children: children })] }));
+};
