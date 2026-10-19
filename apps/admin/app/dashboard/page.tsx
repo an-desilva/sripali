@@ -6,37 +6,52 @@ import { DollarSign, ShoppingBag, Clock, CheckCircle2, TrendingUp, AlertCircle, 
 import { RevenueChart } from '../../components/charts/RevenueChart';
 import { OrderVolumeChart } from '../../components/charts/OrderVolumeChart';
 import { IAnalyticsOverview } from '@sripalie/types';
+import { adminFetch } from '../../lib/api';
 
 export default function DashboardPage() {
   const [range, setRange] = useState<'day' | 'week' | 'month' | 'year'>('month');
   const [analytics, setAnalytics] = useState<IAnalyticsOverview | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
 
-  const fetchAnalytics = async () => {
-    setLoading(true);
+  const fetchAnalytics = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
+    else setIsRefreshing(true);
+    setError('');
+
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('sripalie_token') : null;
-
-      const res = await fetch(`${apiUrl}/admin/analytics/overview?range=${range}`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-      });
+      const res = await adminFetch(`/admin/analytics/overview?range=${range}`);
 
       if (res.ok) {
         const data = await res.json();
         setAnalytics(data);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setError(errData.message || `Failed to fetch analytics (${res.status})`);
       }
-    } catch (err) {
-      console.error('Error fetching analytics');
+    } catch (err: any) {
+      setError(err.message || 'Cannot reach API backend server on port 5000.');
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     fetchAnalytics();
+
+    const handleAuthSuccess = () => fetchAnalytics(true);
+    window.addEventListener('admin_auth_success', handleAuthSuccess);
+
+    const interval = setInterval(() => {
+      fetchAnalytics(true);
+    }, 15000);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('admin_auth_success', handleAuthSuccess);
+    };
   }, [range]);
 
   return (
@@ -66,6 +81,13 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {error && (
+        <div className="p-4 bg-red-950/50 border border-red-800 rounded-xl text-red-300 text-xs flex items-center justify-between">
+          <span><strong>API Error:</strong> {error}</span>
+          <button onClick={() => fetchAnalytics()} className="underline font-bold ml-4 hover:text-white">Retry</button>
+        </div>
+      )}
 
       {loading ? (
         <div className="py-24 text-center space-y-3">

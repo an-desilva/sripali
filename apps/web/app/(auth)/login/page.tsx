@@ -40,8 +40,8 @@ export default function LoginPage() {
 
       if (data.user.role === 'admin') {
         const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:3001';
-        // Redirect to admin portal or dashboard
-        window.location.href = adminUrl;
+        // Redirect to admin portal and pass token for origin bridge
+        window.location.href = `${adminUrl}/dashboard?token=${encodeURIComponent(data.token)}&user=${encodeURIComponent(JSON.stringify(data.user))}`;
       } else {
         router.push('/catalog');
       }

@@ -5,56 +5,67 @@ import { Card, Badge, Button, Input } from '@sripalie/ui';
 import { ShoppingBag, MessageSquare, Printer, CheckCircle2, DollarSign, Filter, RefreshCw } from 'lucide-react';
 import { IOrder } from '@sripalie/types';
 import { InvoicePrintModal } from '../../components/InvoicePrintModal';
+import { adminFetch } from '../../lib/api';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<IOrder[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrderForPrint, setSelectedOrderForPrint] = useState<IOrder | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
-  const fetchOrders = async () => {
-    setLoading(true);
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('sripalie_token') : null;
-      const url = statusFilter !== 'all' ? `${apiUrl}/orders/all?status=${statusFilter}` : `${apiUrl}/orders/all`;
+  const fetchOrders = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
+    else setIsRefreshing(true);
+    setError('');
 
-      const res = await fetch(url, {
-        headers: { Authorization: token ? `Bearer ${token}` : '' },
-      });
+    try {
+      const endpoint = statusFilter !== 'all' ? `/orders/all?status=${statusFilter}` : `/orders/all`;
+      const res = await adminFetch(endpoint);
 
       if (res.ok) {
         const data = await res.json();
         setOrders(data);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setError(errData.message || `Failed to fetch orders (${res.status})`);
       }
-    } catch (err) {
-      console.error('Error fetching orders');
+    } catch (err: any) {
+      setError(err.message || 'Cannot reach API backend server on port 5000.');
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     fetchOrders();
+
+    const handleAuthSuccess = () => fetchOrders(true);
+    window.addEventListener('admin_auth_success', handleAuthSuccess);
+
+    const interval = setInterval(() => {
+      fetchOrders(true);
+    }, 10000);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('admin_auth_success', handleAuthSuccess);
+    };
   }, [statusFilter]);
 
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('sripalie_token') : null;
-
-      const res = await fetch(`${apiUrl}/orders/${orderId}/status`, {
+      const res = await adminFetch(`/orders/${orderId}/status`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderStatus: newStatus }),
       });
 
       if (res.ok) {
-        fetchOrders();
+        fetchOrders(true);
       }
     } catch (err) {
       console.error('Error updating order status');
@@ -63,20 +74,14 @@ export default function OrdersPage() {
 
   const handleCollectPayment = async (orderId: string, amount: number) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('sripalie_token') : null;
-
-      const res = await fetch(`${apiUrl}/orders/${orderId}/payment`, {
+      const res = await adminFetch(`/orders/${orderId}/payment`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ additionalPaid: amount }),
       });
 
       if (res.ok) {
-        fetchOrders();
+        fetchOrders(true);
       }
     } catch (err) {
       console.error('Error collecting payment');
@@ -100,20 +105,37 @@ export default function OrdersPage() {
           <p className="text-xs text-slate-400 mt-1">Status tracking, WhatsApp customer alerts, and thermal invoice printing</p>
         </div>
 
-        {/* Status Filter */}
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="bg-slate-900 border border-slate-800 text-xs text-white p-2.5 rounded-xl font-medium"
-        >
-          <option value="all">All Order Statuses</option>
-          <option value="Pending">Pending</option>
-          <option value="Processing">Processing</option>
-          <option value="Ready for Pickup">Ready for Pickup</option>
-          <option value="Completed">Completed</option>
-          <option value="Cancelled">Cancelled</option>
-        </select>
+        <div className="flex items-center gap-3">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-slate-900 border border-slate-800 text-xs text-white p-2.5 rounded-xl font-medium"
+          >
+            <option value="all">All Order Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Processing">Processing</option>
+            <option value="Ready for Pickup">Ready for Pickup</option>
+            <option value="Completed">Completed</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+
+          <button
+            onClick={() => fetchOrders()}
+            disabled={loading || isRefreshing}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-rose-500' : ''}`} />
+            <span>{isRefreshing ? 'Syncing...' : 'Sync Now'}</span>
+          </button>
+        </div>
       </div>
+
+      {error && (
+        <div className="p-4 bg-red-950/50 border border-red-800 rounded-xl text-red-300 text-xs flex items-center justify-between">
+          <span><strong>API Error:</strong> {error}</span>
+          <button onClick={() => fetchOrders()} className="underline font-bold ml-4 hover:text-white">Retry</button>
+        </div>
+      )}
 
       {loading ? (
         <div className="py-24 text-center space-y-3">

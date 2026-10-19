@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Input, Button, Badge } from '@sripalie/ui';
 import { ShieldAlert, Lock, UserX, AlertTriangle, ShieldCheck, RefreshCw, KeyRound, Ban } from 'lucide-react';
 import { IUser, ISecuritySetting } from '@sripalie/types';
+import { adminFetch } from '../../lib/api';
 
 export default function SecurityPage() {
   const [securityStatus, setSecurityStatus] = useState<ISecuritySetting | null>(null);
@@ -16,16 +17,9 @@ export default function SecurityPage() {
   const fetchSecurityData = async () => {
     setLoading(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('sripalie_token') : null;
-
       const [statusRes, usersRes] = await Promise.all([
-        fetch(`${apiUrl}/admin/security/status`, {
-          headers: { Authorization: token ? `Bearer ${token}` : '' },
-        }),
-        fetch(`${apiUrl}/admin/security/users`, {
-          headers: { Authorization: token ? `Bearer ${token}` : '' },
-        }),
+        adminFetch('/admin/security/status'),
+        adminFetch('/admin/security/users'),
       ]);
 
       if (statusRes.ok) {
@@ -45,16 +39,16 @@ export default function SecurityPage() {
 
   useEffect(() => {
     fetchSecurityData();
+
+    const handleAuth = () => fetchSecurityData();
+    window.addEventListener('admin_auth_success', handleAuth);
+    return () => window.removeEventListener('admin_auth_success', handleAuth);
   }, []);
 
   const handleToggleLockdown = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('sripalie_token') : null;
-
-      const res = await fetch(`${apiUrl}/admin/security/toggle-lockdown`, {
+      const res = await adminFetch('/admin/security/toggle-lockdown', {
         method: 'POST',
-        headers: { Authorization: token ? `Bearer ${token}` : '' },
       });
 
       if (res.ok) {
@@ -73,15 +67,9 @@ export default function SecurityPage() {
   const handleRevokeUser = async (userId: string) => {
     if (!confirm('Revoke access and increment token version for this user? Active sessions will terminate immediately.')) return;
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('sripalie_token') : null;
-
-      const res = await fetch(`${apiUrl}/admin/security/revoke-user/${userId}`, {
+      const res = await adminFetch(`/admin/security/revoke-user/${userId}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: 'Security Revocation by Store Manager' }),
       });
 
@@ -97,12 +85,8 @@ export default function SecurityPage() {
 
   const handleUnblockUser = async (userId: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('sripalie_token') : null;
-
-      const res = await fetch(`${apiUrl}/admin/security/unblock-user/${userId}`, {
+      const res = await adminFetch(`/admin/security/unblock-user/${userId}`, {
         method: 'POST',
-        headers: { Authorization: token ? `Bearer ${token}` : '' },
       });
 
       if (res.ok) {
@@ -120,15 +104,9 @@ export default function SecurityPage() {
     if (!ipToBlacklist) return;
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('sripalie_token') : null;
-
-      const res = await fetch(`${apiUrl}/admin/security/blacklist-ip`, {
+      const res = await adminFetch(`/admin/security/blacklist-ip`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ip: ipToBlacklist }),
       });
 

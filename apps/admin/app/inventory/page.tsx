@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Input, Button, Badge, Modal } from '@sripalie/ui';
 import { Glasses, Plus, Edit, Trash2, Search, RefreshCw } from 'lucide-react';
 import { IProduct } from '@sripalie/types';
+import { adminFetch } from '../../lib/api';
 
 export default function InventoryPage() {
   const [products, setProducts] = useState<IProduct[]>([]);
@@ -24,8 +25,7 @@ export default function InventoryPage() {
   const fetchInventory = async () => {
     setLoading(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const res = await fetch(`${apiUrl}/products`);
+      const res = await adminFetch('/products');
       if (res.ok) {
         const data = await res.json();
         setProducts(data);
@@ -39,19 +39,19 @@ export default function InventoryPage() {
 
   useEffect(() => {
     fetchInventory();
+
+    const handleAuth = () => fetchInventory();
+    window.addEventListener('admin_auth_success', handleAuth);
+    return () => window.removeEventListener('admin_auth_success', handleAuth);
   }, []);
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('sripalie_token') : null;
-
-      const res = await fetch(`${apiUrl}/products`, {
+      const res = await adminFetch('/products', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
         },
         body: JSON.stringify({
           title,

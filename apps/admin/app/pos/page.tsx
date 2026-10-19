@@ -5,6 +5,7 @@ import { Card, Input, Button, Badge } from '@sripalie/ui';
 import { ShoppingCart, Glasses, User, Printer, CheckCircle2, Calculator } from 'lucide-react';
 import { IProduct, IOrder } from '@sripalie/types';
 import { InvoicePrintModal } from '../../components/InvoicePrintModal';
+import { adminFetch } from '../../lib/api';
 
 export default function POSPage() {
   const [products, setProducts] = useState<IProduct[]>([]);
@@ -35,15 +36,15 @@ export default function POSPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-    fetch(`${apiUrl}/products`)
+    adminFetch('/products')
       .then((res) => res.ok && res.json())
       .then((data) => {
         if (data && data.length > 0) {
           setProducts(data);
           setSelectedProduct(data[0]);
         }
-      });
+      })
+      .catch((err) => console.error('Error fetching POS products', err));
   }, []);
 
   const getLensPrice = (type: string) => {
@@ -72,14 +73,10 @@ export default function POSPage() {
     setIsLoading(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('sripalie_token') : null;
-
-      const res = await fetch(`${apiUrl}/orders`, {
+      const res = await adminFetch('/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
         },
         body: JSON.stringify({
           customerName,

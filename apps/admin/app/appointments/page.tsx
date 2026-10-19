@@ -4,51 +4,63 @@ import React, { useState, useEffect } from 'react';
 import { Card, Badge, Button } from '@sripalie/ui';
 import { Calendar, Clock, CheckCircle2, User, RefreshCw } from 'lucide-react';
 import { IAppointment } from '@sripalie/types';
+import { adminFetch } from '../../lib/api';
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<IAppointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
 
-  const fetchAppointments = async () => {
-    setLoading(true);
+  const fetchAppointments = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
+    else setIsRefreshing(true);
+    setError('');
+
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('sripalie_token') : null;
-
-      const res = await fetch(`${apiUrl}/appointments`, {
-        headers: { Authorization: token ? `Bearer ${token}` : '' },
-      });
+      const res = await adminFetch('/appointments');
 
       if (res.ok) {
         const data = await res.json();
         setAppointments(data);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setError(errData.message || `Failed to fetch appointments (${res.status})`);
       }
-    } catch (err) {
-      console.error('Error fetching appointments');
+    } catch (err: any) {
+      setError(err.message || 'Cannot reach API backend server on port 5000.');
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     fetchAppointments();
+
+    const handleAuthSuccess = () => fetchAppointments(true);
+    window.addEventListener('admin_auth_success', handleAuthSuccess);
+
+    // Auto-refresh every 10 seconds so newly submitted appointments appear automatically
+    const timer = setInterval(() => {
+      fetchAppointments(true);
+    }, 10000);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('admin_auth_success', handleAuthSuccess);
+    };
   }, []);
 
   const handleUpdateStatus = async (id: string, status: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('sripalie_token') : null;
-
-      await fetch(`${apiUrl}/appointments/${id}/status`, {
+      await adminFetch(`/appointments/${id}/status`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
 
-      fetchAppointments();
+      fetchAppointments(true);
     } catch (err) {
       console.error('Error updating appointment');
     }
@@ -56,11 +68,29 @@ export default function AppointmentsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <Badge variant="burgundy" className="mb-2">OPTOMETRY CLINIC SCHEDULE</Badge>
-        <h1 className="text-3xl font-extrabold text-white">Clinic Appointments</h1>
-        <p className="text-xs text-slate-400 mt-1">Manage patient eye test bookings and consultation slots</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <Badge variant="burgundy" className="mb-2">OPTOMETRY CLINIC SCHEDULE</Badge>
+          <h1 className="text-3xl font-extrabold text-white">Clinic Appointments</h1>
+          <p className="text-xs text-slate-400 mt-1">Manage patient eye test bookings and consultation slots (Auto-refreshes live)</p>
+        </div>
+
+        <button
+          onClick={() => fetchAppointments()}
+          disabled={loading || isRefreshing}
+          className="self-start sm:self-auto flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-rose-500' : ''}`} />
+          <span>{isRefreshing ? 'Syncing...' : 'Sync Now'}</span>
+        </button>
       </div>
+
+      {error && (
+        <div className="p-4 bg-red-950/50 border border-red-800 rounded-xl text-red-300 text-xs flex items-center justify-between">
+          <span><strong>API Error:</strong> {error}</span>
+          <button onClick={() => fetchAppointments()} className="underline font-bold ml-4 hover:text-white">Retry</button>
+        </div>
+      )}
 
       {loading ? (
         <div className="py-24 text-center space-y-3">
